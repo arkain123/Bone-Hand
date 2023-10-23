@@ -1,0 +1,21 @@
+[
+  {
+    "name": "Dmitry",
+    "gender": "male",
+    "hobbies": [
+      "dating"
+    ],
+    "genderpreference": "women",
+    "chatid": 454532826
+  },
+  {
+    "name": "arkain123",
+    "gender": "male",
+    "hobbies": [
+      "communication",
+      "dating"
+    ],
+    "genderpreference": "women",
+    "chatid": 454532826
+  }
+]

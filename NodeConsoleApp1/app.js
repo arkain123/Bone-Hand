@@ -1,14 +1,6 @@
 const { Telegraf, Markup, session } = require('telegraf');
-const express = require('express')
-const PORT = process.env.PORT || 8080
-const app = express();
-
-app.get('/', (req, res) => {
-    res.send('HELLO POSTGRES')
-})
-
-app.listen(PORT, console.log('Server started on port', PORT))
-
+const fs = require('fs');
+const fileName = 'database.txt'
 // Уровни разговора
 const GENDER = 0;
 const GENDERPREFERENCE = 1;
@@ -19,9 +11,12 @@ const AGREEMENT = 5;
 
 //руглярное выражения всех видов строк
 const regexAllMes = /(.+)/;
+let users = [];
 
-// Словарь, хранящий информацию о пользователях
-const users = [];
+if (fs.existsSync('users.json')) {
+    let data = fs.readFileSync('users.json');
+    users = JSON.parse(data);
+}
 
 // Создайте экземпляр бота
 const bot = new Telegraf('6659929844:AAHimT0xVaQKovHtSIXhNQmj5cCNg9F-YcM');
@@ -35,8 +30,9 @@ bot.command('start', (ctx) => {
     ctx.session.state = GENDER
     for (const user of users) {
         if (user.chatid === ctx.chat.id) {
-            ctx.session.state = USER
             console.log(ctx.chat.id, "already registered!");
+            ctx.session = user ? { ...user, ...ctx.session, state: USER } : { ...ctx.session, state: USER };
+            console.log(ctx.session);
         }
     }
 
@@ -119,7 +115,7 @@ bot.hears(regexAllMes, (ctx) => {
     if (ctx.session.state === PREFERENCES) {
         const hobbies = text.split(' ');
         ctx.session.hobbies = hobbies;
-        console.log(ctx.chat.id, "pick a", hobbies, "hobbies.");
+        console.log(ctx.chat.id, "picks a", hobbies, "hobbies.");
 
         // Записываем пользователя в массив users
         const userData = {
@@ -129,15 +125,16 @@ bot.hears(regexAllMes, (ctx) => {
             genderpreference: ctx.session.genderpreference,
             chatid: ctx.chat.id
         };
-        
+
         users.push(userData);
         console.log("Succesfully added record of", ctx.chat.id);
         ctx.session.state = USER;
+        fs.writeFileSync('users.json', JSON.stringify(users, null, 2));
 
         showUsers(ctx);
 
         // Завершаем беседу
-/*        ctx.session = {};*/
+        /*        ctx.session = {};*/
     }
 
     if (ctx.session.state === NAME) {
@@ -161,28 +158,55 @@ bot.command('cancel', (ctx) => {
 function showUsers(ctx) {
     ctx.session = ctx.session || {};
     const name = ctx.session.name;
-    const hobbies = ctx.session.hobbies;
-    const gender = ctx.session.gender
-    const genderpreference = ctx.session.genderpreference
-    ctx.reply("list of faggots")
-    for (const user of users) {
-        if (hobbies.every(hobbies => user.hobbies.includes(hobbies)) && user.gender === genderpreference && user.genderpreference === gender && user.name != name) {
-            ctx.reply(`name: ${user.name}, sex: ${user.gender}, hobbies: ${user.hobbies}, gender preference: ${user.genderpreference}`);
+    const hobbies = ctx.session.hobbies || [];
+    const gender = ctx.session.gender;
+    const genderpreference = ctx.session.genderpreference;
+    const currentUser = users.find(user => user.chatid === ctx.chat.id);
+    const matches = users.filter(user => {
+        let isMatch = true;
+        for (const hobby of hobbies) {
+            if (!user.hobbies.includes(hobby)) {
+                isMatch = false;
+                break;
+            }
         }
+        return (
+            isMatch &&
+            user.gender === genderpreference &&
+            user.genderpreference === gender &&
+            user.name !== name
+        );
+    });
+
+    if (matches.length > 0) {
+        let message = "Here are some matches for you:\n\n";
+        for (const match of matches) {
+            message += `Name: ${match.name}\n`;
+            message += `Gender: ${match.gender}\n`;
+            message += `Hobbies: ${match.hobbies.join(", ")}\n\n`;
+            message += `Gender preference: ${match.genderpreference}\n`;
+        }
+        ctx.reply(message);
+    } else {
+        ctx.reply("Sorry, no matches found.");
     }
+
     console.log("Showing search record to", ctx.chat.id);
     const replyKeyboard = Markup.keyboard(['search', 'registration']).oneTime().resize();
-    ctx.reply("What's next?", replyKeyboard)
+    ctx.reply("What's next?", replyKeyboard);
 }
+
+process.on('beforeExit', () => {
+    fs.writeFileSync('users.json', JSON.stringify(users, null, 2));
+});
 
 // Запуск бота
 bot.launch();
-
-
 /*
 1. Кириллица!!!
 2. Подвязка датабазы
-
+3. выбери фотку
+4. расскажи о себе
 *. Баг с командой search при старте бота
 
 
